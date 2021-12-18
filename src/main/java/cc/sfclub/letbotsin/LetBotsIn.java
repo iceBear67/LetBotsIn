@@ -11,6 +11,7 @@ import com.mojang.authlib.minecraft.MinecraftSessionService;
 import io.ib67.Util;
 import io.ib67.util.reflection.AccessibleField;
 import lombok.Getter;
+import lombok.SneakyThrows;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.memory.MemoryKey;
@@ -33,14 +34,22 @@ public final class LetBotsIn extends JavaPlugin {
     private boolean ignoreIPCheck;
     @Getter
     private boolean debug;
-
+    private static LetBotsIn instance;
     public static LetBotsIn getInstance() {
-        return LetBotsIn.getPlugin(LetBotsIn.class);
+        return instance;
     }
 
     @Override
     public void onEnable() {
-        // 加载配置
+        instance=this;
+        loadConfig();
+        // Inject session service
+        inject();
+        getServer().getPluginManager().registerEvents(new Listeners(), this);
+        // Initialize packet filter...
+        ProtocolLibrary.getProtocolManager().addPacketListener(new PacketListener(this, PacketType.Login.Server.ENCRYPTION_BEGIN,PacketType.Login.Client.START));
+    }
+    private void loadConfig(){
         getDataFolder().mkdirs();
         saveDefaultConfig();
         ConfigurationSection section = getConfig().getConfigurationSection("allowedPlayers");
@@ -59,13 +68,7 @@ public final class LetBotsIn extends JavaPlugin {
         ignoreIPCheck = getConfig().getBoolean("ignoreIpCheck", true);
         debug = getConfig().getBoolean("debug", false);
 
-        // 注入 SessionService
-        inject();
-        getServer().getPluginManager().registerEvents(new Listeners(), this);
-        // 初始化 filter 避免bot进行正版验证
-        ProtocolLibrary.getProtocolManager().addPacketListener(new PacketListener(this, PacketType.Login.Server.ENCRYPTION_BEGIN,PacketType.Login.Client.START));
     }
-
     public boolean isBot(String name, String address) {
         boolean result =allowedPlayers.stream().anyMatch(e -> e.matches(name,address));
         if(debug){
@@ -82,37 +85,31 @@ public final class LetBotsIn extends JavaPlugin {
     public boolean isBot(Player player) {
         return player.hasMetadata(METADATA_KEY);
     }
-
+    @SneakyThrows
     private void inject() {
-        Util.runCatching(() -> {
-            Class<?> craftServerClass = getServer().getClass();
-            Method craftServerGetHandle = craftServerClass.getDeclaredMethod("getHandle");
-            Class<?> dedicatedPlayerListClass = craftServerGetHandle.getReturnType();
-            Method dedicatedPlayerListGetHandler = null/*dedicatedPlayerListClass.getDeclaredMethod("getServer")*/;
-            for (Method method : dedicatedPlayerListClass.getMethods()) {
-                if (method.getReturnType().getName().contains("DedicatedServer")) {
-                    dedicatedPlayerListGetHandler = method;
-                }
-            }
 
-            Class<?> minecraftServerClass = dedicatedPlayerListGetHandler.getReturnType().getSuperclass();
-            String fname = null;
-            for (Field field : minecraftServerClass.getDeclaredFields()) {
-                if (field.getType().getCanonicalName().equals(MinecraftSessionService.class.getCanonicalName())) {
-                    fname = field.getName();
-                }
+        Class<?> craftServerClass = getServer().getClass();
+        Method craftServerGetHandle = craftServerClass.getDeclaredMethod("getHandle");
+        Class<?> dedicatedPlayerListClass = craftServerGetHandle.getReturnType();
+        Method dedicatedPlayerListGetHandler = null/*dedicatedPlayerListClass.getDeclaredMethod("getServer")*/;
+        for (Method method : dedicatedPlayerListClass.getMethods()) {
+            if (method.getReturnType().getName().contains("DedicatedServer")) {
+                dedicatedPlayerListGetHandler = method;
             }
+        }
 
-            AccessibleField<Object> field = new AccessibleField<Object>((Class<Object>) minecraftServerClass, fname, false);
-            Object obj = dedicatedPlayerListGetHandler.invoke(craftServerGetHandle.invoke(getServer()));
-            HttpMinecraftSessionService svc = (HttpMinecraftSessionService) field.get(obj);
-            DelegatedMinecraftSessionService service = new DelegatedMinecraftSessionService(svc, svc.getAuthenticationService());
-            field.set(obj, service);
-            return null;
-        }).alsoPrintStack().onSuccess(e -> {
-            getLogger().info("Load successful!");
-        }).onFailure(e -> {
-            getLogger().info("Can't load!");
-        });
+        Class<?> minecraftServerClass = dedicatedPlayerListGetHandler.getReturnType().getSuperclass();
+        String fname = null;
+        for (Field field : minecraftServerClass.getDeclaredFields()) {
+            if (field.getType().getCanonicalName().equals(MinecraftSessionService.class.getCanonicalName())) {
+                fname = field.getName();
+            }
+        }
+
+        AccessibleField<Object> field = new AccessibleField<Object>((Class<Object>) minecraftServerClass, fname, false);
+        Object obj = dedicatedPlayerListGetHandler.invoke(craftServerGetHandle.invoke(getServer()));
+        HttpMinecraftSessionService svc = (HttpMinecraftSessionService) field.get(obj);
+        DelegatedMinecraftSessionService service = new DelegatedMinecraftSessionService(svc, svc.getAuthenticationService());
+        field.set(obj, service);
     }
 }

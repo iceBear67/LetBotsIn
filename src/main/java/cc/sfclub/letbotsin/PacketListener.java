@@ -1,6 +1,7 @@
 package cc.sfclub.letbotsin;
 
 import com.comphenix.protocol.PacketType;
+import com.comphenix.protocol.events.ListenerPriority;
 import com.comphenix.protocol.events.PacketAdapter;
 import com.comphenix.protocol.events.PacketContainer;
 import com.comphenix.protocol.events.PacketEvent;
@@ -14,12 +15,11 @@ public class PacketListener extends PacketAdapter {
     private final Map<String,String> ipNameMap = new HashMap<>();
 
     public PacketListener(Plugin plugin, PacketType... types) {
-        super(plugin, types);
+        super(plugin, ListenerPriority.HIGHEST,types);
     }
 
     @Override
     public void onPacketReceiving(PacketEvent event) {
-        System.out.println(event.getPacketType());
         if(event.getPacketType() == PacketType.Login.Client.START){
             PacketContainer container = event.getPacket();
             String id = container.getGameProfiles().read(0).getName();

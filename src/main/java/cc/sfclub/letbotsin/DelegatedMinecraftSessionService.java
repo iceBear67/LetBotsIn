@@ -1,5 +1,6 @@
 package cc.sfclub.letbotsin;
 
+import cc.sfclub.letbotsin.util.UUIDUtil;
 import com.mojang.authlib.AuthenticationService;
 import com.mojang.authlib.GameProfile;
 import com.mojang.authlib.GameProfileRepository;
@@ -35,10 +36,9 @@ public class DelegatedMinecraftSessionService extends HttpMinecraftSessionServic
 
     public GameProfile hasJoinedServer(GameProfile gameProfile, String serverId, InetAddress inetAddress) throws AuthenticationUnavailableException {
         getLogger().info(gameProfile.toString());
-        if(LetBotsIn.getInstance().isBot(gameProfile.getName(),inetAddress.getHostAddress())){
-            return new GameProfile(UUID.nameUUIDFromBytes(gameProfile.getName().getBytes()),gameProfile.getName());
+        if(LetBotsIn.getInstance().isBot(gameProfile.getName(),inetAddress==null?null:inetAddress.getHostAddress())){
+            return new GameProfile(UUIDUtil.calcUUID(gameProfile.getName()),gameProfile.getName());
         }
-
         return service.hasJoinedServer(gameProfile, serverId, inetAddress);
     }
 
