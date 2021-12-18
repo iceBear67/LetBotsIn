@@ -1,0 +1,6 @@
+name: LetBotsIn
+version: '${version}'
+main: cc.sfclub.letbotsin.LetBotsIn
+api-version: 1.18
+depend:
+  - ProtocolLib

@@ -1,0 +1,11 @@
+# 是否忽略 IP 检查
+ignoreIpCheck: true
+
+# 是否启用调试模式，可能有助于解决 ip 格式问题
+debug: false
+
+# 允许进入的离线玩家们
+allowedPlayers:
+  bot:
+    namePattern: "^bot.+"
+    ipPattern: "(localhost|127.0.0.1|0.0.0.0|192.168.*)"
